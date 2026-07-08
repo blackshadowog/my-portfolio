@@ -159,7 +159,7 @@ a:focus-visible, button:focus-visible{outline:2px solid var(--pencil-blue);outli
    left-to-right like a pen writing across the page, once it scrolls into view */
 .write{
   clip-path:inset(0 100% 0 0);
-  transition:clip-path .85s cubic-bezier(.55,0,.1,1);
+  transition:clip-path 1.5s cubic-bezier(.55,0,.1,1);
   will-change:clip-path;
 }
 .write.in{ clip-path:inset(0 0 0 0); }
@@ -173,7 +173,7 @@ footer{scroll-margin-top:84px;}
 .sec-head{margin-bottom:32px;}
 .sec-head h2{font-size:38px;margin-bottom:4px;}
 .sec-head .sub{font-family:'Architects Daughter',cursive;font-size:14px;color:var(--ink-soft);}
-.reveal{opacity:0;transform:translateY(14px);transition:opacity .55s ease, transform .55s ease;}
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .9s ease, transform .9s ease;}
 .reveal.in{opacity:1;transform:translateY(0);}
 .divider{border:none;border-top:2px dashed var(--rule);margin:0;}
 
@@ -715,36 +715,33 @@ footer h2{font-size:44px;max-width:16ch;line-height:1.1;}
 </div>
 
 <script>
-  // Generic scroll-reveal: adds `.in` to matched elements once they enter the
-  // viewport. Also does an immediate bounding-box check on setup so anything
-  // already visible on page load (like the hero heading) reveals right away
-  // instead of waiting on an IntersectionObserver callback that may never
-  // fire for already-visible elements in some browsers.
+  // Scroll-driven reveal: only elements currently on-screen get the `.in`
+  // class (which triggers their fade/write-in transition). As you scroll,
+  // more elements enter the viewport and animate in — nothing is force-shown
+  // ahead of time, and nothing is ever left permanently invisible.
+  let pending = [];
+
+  function checkReveal() {
+    pending = pending.filter(el => {
+      const rect = el.getBoundingClientRect();
+      const visible = rect.top < window.innerHeight * 0.92 && rect.bottom > 0;
+      if (visible) {
+        el.classList.add('in');
+        return false; // done, stop tracking it
+      }
+      return true; // keep checking later
+    });
+  }
+
   function setupReveal(selector, extraClass) {
     const els = document.querySelectorAll(selector);
-    if (extraClass) els.forEach(el => el.classList.add(extraClass));
-
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('in');
-          obs.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0, rootMargin: '0px 0px -2% 0px' });
-
     els.forEach(el => {
-      obs.observe(el);
-      const rect = el.getBoundingClientRect();
-      if (rect.top < window.innerHeight && rect.bottom > 0) {
-        el.classList.add('in');
-        obs.unobserve(el);
-      }
+      if (extraClass) el.classList.add(extraClass);
+      pending.push(el);
     });
   }
 
   setupReveal('.reveal');
-
   // "Writing" reveal for all main body text (headings, paragraphs, list items,
   // captions) — each line wipes in left-to-right like a pen writing.
   setupReveal([
@@ -758,6 +755,17 @@ footer h2{font-size:44px;max-width:16ch;line-height:1.1;}
     'footer h2', '.foot-note span',
     '.doodle-photo .cap'
   ].join(','), 'write');
+
+  let ticking = false;
+  function onScrollOrResize() {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(() => { checkReveal(); ticking = false; });
+    }
+  }
+  window.addEventListener('scroll', onScrollOrResize, { passive: true });
+  window.addEventListener('resize', onScrollOrResize);
+  checkReveal(); // reveal whatever's already on screen at load (e.g. the hero)
 
   // Pencil-sketch: (re)play the "drawing" animation each time it scrolls into view
   const sketchFrame = document.getElementById('sketchFrame');
@@ -810,13 +818,6 @@ footer h2{font-size:44px;max-width:16ch;line-height:1.1;}
   document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
   lightbox.addEventListener('click', (e) => { if(e.target === lightbox) closeLightbox(); });
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeLightbox(); });
-
-  // Absolute safety net: if anything with `.write` or `.reveal` is still
-  // hidden 1.5s after load for any reason, just show it — content must
-  // never be permanently invisible.
-  setTimeout(() => {
-    document.querySelectorAll('.write:not(.in), .reveal:not(.in)').forEach(el => el.classList.add('in'));
-  }, 1500);
 </script>
 
 </body>
